@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNAKE RIALO BETA</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(255,255,255,0.05), transparent 40%),
+                repeating-linear-gradient(45deg, #feecd4 0 12px, #f8e6d0 12px 24px);
+            font-family: "Courier New", "Lucida Console", monospace;
+            color: #8b4513; /* Coklat tua untuk teks agar kontras dengan krem */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Changed to flex-start for better control of lower elements */
+            user-select: none;
+            overflow: hidden;
+        }
+
+        #title {
+            position: absolute;
+            top: 10px; /* Adjusted for larger size */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 48px; /* 2x larger: from 24px to 48px */
+            font-weight: bold;
+            letter-spacing: 6px; /* Slightly increased for better spacing */
+            text-shadow: 0 3px 0 #d4b8a0, 0 0 12px rgba(139,69,19,0.3); /* Enhanced shadow for larger text */
+            z-index: 10;
+            text-align: center;
+        }
+
+        #score {
+            position: absolute;
+            top: 120px; /* Kept as is */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            z-index: 10;
+            background: rgba(254,236,212,0.8); /* Krem transparan */
+            padding: 10px 20px;
+            border: 1px solid #d4b8a0;
+            border-radius: 5px;
+            color: #8b4513;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 180px; /* Lowered slightly: from 160px to 180px */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            text-align: center;
+            color: #a0522d;
+            z-index: 10;
+            opacity: 0.9;
+        }
+
+        #gameContainer {
+            position: absolute; /* Changed to absolute for precise lowering */
+            top: 240px; /* Lowered the game area: starts at 240px from top */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 5;
+        }
+
+        canvas {
+            border: 2px solid #d4b8a0; /* Border krem-coklat */
+            background: 
+                repeating-linear-gradient(0deg, transparent 0 20px, rgba(212,184,160,0.1) 20px 21px), /* Grid krem */
+                repeating-linear-gradient(90deg, transparent 0 20px, rgba(212,184,160,0.1) 20px 21px),
+                #feecd4; /* Background utama krem */
+            image-rendering: pixelated;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(254,236,212,0.9); /* Krem transparan */
+            border: 1px solid #d4b8a0;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+            color: #8b4513;
+        }
+
+        #restartBtn {
+            font-family: inherit;
+            font-size: 16px;
+            padding: 10px 20px;
+            background: #f8e6d0;
+            color: #8b4513;
+            border: 1px solid #d4b8a0;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        #restartBtn:hover {
+            background: #feecd4;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #a0522d;
+        }
+    </style>
+</head>
+<body>
+    <div id="title">SNAKE RIALO BETA</div>
+    <div id="score">Score: 0 | High Score: 0</div>
+    <div id="instructions">Use arrow keys (↑↓←→) to move the snake. Eat yellow food to grow!</div>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="gameOver">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <p style="font-size: 12px; opacity: 0.8;">Use arrow keys for controls. Press Restart or space to play again.</p>
+            <button id="restartBtn">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const instructionsElement = document.getElementById('instructions');
+
+        // Game variables
+        const gridSize = 20;
+        const tileCountX = canvas.width / gridSize;
+        const tileCountY = canvas.height / gridSize;
+        let snake = [
+            {x: 10, y: 10}
+        ];
+        let food = {};
+        let dx = 0; // Start diam, user harus input untuk mulai
+        let dy = 0;
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('snakeHighScore')) || 0;
+        let speed = 200; // Lebih lambat awal untuk pemula
+        let gameRunning = true;
+        let gameLoop;
+
+        // NEW: Images for snake body, head, and food
+        let snakeImg = new Image(); // For body segments
+        snakeImg.src = 'snake.png'; // Ganti dengan path gambar body ular Anda (20x20 px PNG)
+        let headImg = new Image(); // For head only
+        headImg.src = 'snake_head.png'; // Ganti dengan path gambar kepala ular Anda (20x20 px PNG)
+        let foodImg = new Image();
+        foodImg.src = 'food.png'; // Ganti dengan path gambar makanan Anda (20x20 px PNG)
+
+        // Check if images are loaded (fallback to rect if not)
+        function isImageLoaded(img) {
+            return img.complete && img.naturalHeight !== 0;
+        }
+
+        // Update score display
+        function updateScore() {
+            scoreElement.textContent = `Score: ${score} | High Score: ${highScore}`;
+        }
+
+        // Place food randomly with safeguard
+        function placeFood() {
+            let attempts = 0;
+            while (attempts < 20) { // Max attempts to avoid infinite loop
+                food = {
+                    x: Math.floor(Math.random() * tileCountX),
+                    y: Math.floor(Math.random() * tileCountY)
+                };
+                let onSnake = false;
+                for (let segment of snake) {
+                    if (segment.x === food.x && segment.y === food.y) {
+                        onSnake = true;
+                        break;
+                    }
+                }
+                if (!onSnake) return;
+                attempts++;
+            }
+            // If failed (snake almost full), force random
+            food = {
+                x: Math.floor(Math.random() * tileCountX),
+                y: Math.floor(Math.random() * tileCountY)
+            };
+        }
+
+        // Draw game elements (UPDATED with separate head image)
+        function drawGame() {
+            // Clear canvas with new color
+            ctx.fillStyle = '#feecd4';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw snake (head separate from body)
+            for (let i = 0; i < snake.length; i++) {
+                const segment = snake[i];
+                const x = segment.x * gridSize;
+                const y = segment.y * gridSize;
+
+                if (i === 0) { // Head (first segment)
+                    if (isImageLoaded(headImg)) {
+                        ctx.drawImage(headImg, x, y, gridSize, gridSize);
+                    } else {
+                        // Fallback to green rect for head
+                        ctx.fillStyle = '#27d827';
+                        ctx.fillRect(x, y, gridSize - 2, gridSize - 2);
+                    }
+                } else { // Body segments
+                    if (isImageLoaded(snakeImg)) {
+                        ctx.drawImage(snakeImg, x, y, gridSize, gridSize);
+                    } else {
+                        // Fallback to green rect for body
+                        ctx.fillStyle = '#27d827';
+                        ctx.fillRect(x, y, gridSize - 2, gridSize - 2);
+                    }
+                }
+            }
+
+            // Draw food (with image or fallback)
+            if (isImageLoaded(foodImg)) {
+                ctx.drawImage(foodImg, food.x * gridSize, food.y * gridSize, gridSize, gridSize);
+            } else {
+                // Fallback to yellow rect
+                ctx.fillStyle = '#ffd35c';
+                ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+            }
+        }
+
+        // Move snake (FIXED: Check self collision BEFORE unshift)
+        function moveSnake() {
+            if (!gameRunning || (dx === 0 && dy === 0)) return; // Diam jika belum input
+
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+            // Check wall collision
+            if (head.x < 0 || head.x >= tileCountX || head.y < 0 || head.y >= tileCountY) {
+                gameOver();
+                return;
+            }
+
+            // FIXED: Check self collision BEFORE adding head (vs current snake body)
+            for (let i = 0; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            // Check food collision
+            if (head.x === food.x && head.y === food.y) {
+                score += 3;
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('snakeHighScore', highScore);
+                }
+                updateScore();
+                placeFood();
+                // Increase speed
+                const newSpeed = Math.max(80, speed - 10); // Naik lebih cepat, min 80ms
+                if (newSpeed !== speed) {
+                    speed = newSpeed;
+                    clearInterval(gameLoop);
+                    startGameLoop();
+                }
+            } else {
+                snake.pop();
+            }
+        }
+
+        // Game loop function
+        function startGameLoop() {
+            gameLoop = setInterval(() => {
+                moveSnake();
+                drawGame();
+            }, speed);
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            gameOverElement.style.display = 'block';
+            clearInterval(gameLoop);
+        }
+
+        // Restart game
+        function restart() {
+            snake = [{x: 10, y: 10}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            speed = 200;
+            gameRunning = true;
+            updateScore();
+            placeFood();
+            gameOverElement.style.display = 'none';
+            instructionsElement.style.display = 'block'; // Show instructions again
+            clearInterval(gameLoop);
+            startGameLoop();
+        }
+
+        // Controls
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !gameRunning) {
+                e.preventDefault();
+                restart();
+                return;
+            }
+            if (!gameRunning) return;
+
+            // Set direction, but only if not opposite
+            if (e.key === 'ArrowUp' && dy !== 1) { 
+                dx = 0; 
+                dy = -1; 
+                instructionsElement.style.display = 'none'; // Hide after first input
+            }
+            if (e.key === 'ArrowDown' && dy !== -1) { 
+                dx = 0; 
+                dy = 1; 
+                instructionsElement.style.display = 'none';
+            }
+            if (e.key === 'ArrowLeft' && dx !== 1) { 
+                dx = -1; 
+                dy = 0; 
+                instructionsElement.style.display = 'none';
+            }
+            if (e.key === 'ArrowRight' && dx !== -1) { 
+                dx = 1; 
+                dy = 0; 
+                instructionsElement.style.display = 'none';
+            }
+        });
+
+        // Initialize game
+        updateScore();
+        placeFood();
+        drawGame();
+        startGameLoop();
+
+        // Restart button
+        restartBtn.addEventListener('click', restart);
+    </script>
+</body>
+</html>
